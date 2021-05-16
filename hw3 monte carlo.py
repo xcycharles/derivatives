@@ -4,7 +4,7 @@ import IPython
 import BSM_class
 import random
 import pandas as pd
-IPython.get_ipython().magic("matplotlib auto")  # show interactive plot not inline
+#IPython.get_ipython().magic("matplotlib auto")  # show interactive plot not inline
 
 
 
@@ -86,9 +86,16 @@ class GeometricBrownianMotion:
         while (self.T - self.dt > 0):
             # dWt = np.random.normal(0, np.sqrt(self.dt))  # That is the Brownian motion by definition
             Z = np.random.normal(0, 1)
-            logreturn = (self.drift - 0.5 * self.volatility ** 2) * self.dt + self.volatility * Z * np.sqrt(dt)
+
+            # method 1
+            # logreturn = (self.drift - 0.5 * self.volatility ** 2) * self.dt + self.volatility * Z * np.sqrt(dt)
             # Note: sigma*Z*sqrt(dt)=sigma*dW(t) they are the same thing by definitions
-            self.current_price = np.exp(np.log(self.current_price) + logreturn)  # ln(new)=ln(stock price last)+logreturn
+            # self.current_price = np.exp(np.log(self.current_price) + logreturn)  # ln(new)=ln(stock price last)+logreturn
+
+            # method 2 - better way
+            dSt = (self.drift * self.dt) * self.current_price + self.volatility * Z * np.sqrt(dt) * self.current_price
+            self.current_price = self.current_price + dSt
+
             self.prices.append(self.current_price)  # Append new price to series
             self.T -= self.dt  # Account for the step in time
 
@@ -99,23 +106,7 @@ def main(rebate):
     for i in range(0, paths):
         price_paths.append(GeometricBrownianMotion(initial_price, drift, volatility, dt, T).prices)
 
-    # Plot all brownian motion paths, optional
-    plt.figure(figsize=(16, 8))
-    for price_path in price_paths:
-        plt.plot(price_path)
-    plt.xlabel('steps/days')
-    plt.ylabel('stock price')
-    plt.grid()
-    #plt.show()
-
     ec = European_Call_Payoff(strike_price)
-    vanilla_call_payoffs = []
-    case1_call_payoffs = []
-    case2_call_payoffs = []
-    case3_call_payoffs = []
-    case41_call_payoffs = []
-    case42_call_payoffs = []
-    case43_call_payoffs = []
 
     # generate payoff in each brownian motion
     for price_path in price_paths:
@@ -173,7 +164,9 @@ def main(rebate):
         case43_call_payoffs.append(bc_case43.get_payoff(price_path[-1]) / np.exp(risk_free_rate * T))
         vanilla_call_payoffs.append(ec.get_payoff(price_path[-1]) / np.exp(risk_free_rate*T))
 
-    trade = BSM_class.OptionTrade(initial_price, strike_price, risk_free_rate, volatility, T, dividend_yield, 1)
+    global bsm_call_payoff
+    bsm_call_payoff = BSM_class.OptionTrade(price_paths[0][0], strike_price, risk_free_rate, volatility, T, dividend_yield, 1).BSM()
+
     # print('European Option BSM price is: ', trade.BSM())
     # print('European Vanilla Option simulation price is: ', np.average(vanilla_call_payoffs))
     # print('European Case1 Option simulation price is: ', np.average(case1_call_payoffs))
@@ -182,16 +175,24 @@ def main(rebate):
     # print('European Case4_monthly Option simulation price is: ', np.average(case41_call_payoffs))
     # print('European Case4_weekly Option simulation price is: ', np.average(case42_call_payoffs))
     # print('European Case4_daily Option simulation price is: ', np.average(case43_call_payoffs))
-    # BSM will match brownian motion monte carlo pricing if drift is zero!
+
     # no one is better than the other, they are just different approaches
 
-    return [trade.BSM(),np.average(vanilla_call_payoffs),np.average(case1_call_payoffs),np.average(case2_call_payoffs),np.average(case3_call_payoffs),np.average(case41_call_payoffs),np.average(case42_call_payoffs),np.average(case43_call_payoffs)]
+    return [bsm_call_payoff,np.average(vanilla_call_payoffs),np.average(case1_call_payoffs),np.average(case2_call_payoffs),np.average(case3_call_payoffs),np.average(case41_call_payoffs),np.average(case42_call_payoffs),np.average(case43_call_payoffs)]
 
 
 if __name__ == "__main__":
 
     # Model Parameters
 
+    price_paths = []
+    vanilla_call_payoffs = []
+    case1_call_payoffs = []
+    case2_call_payoffs = []
+    case3_call_payoffs = []
+    case41_call_payoffs = []
+    case42_call_payoffs = []
+    case43_call_payoffs = []
     random.seed(1)
     paths = 1000
     initial_price = 100.0
@@ -202,12 +203,35 @@ if __name__ == "__main__":
     risk_free_rate = 0.02
     drift = risk_free_rate
     dividend_yield = 0.0
-    price_paths = [] # contains set of Brownian motions
 
     # Main
 
-    df = pd.DataFrame([],index=['BSM price','vanilla price','constant barrier price','step-up barrier price','linear barrier price','discrete barrier monthly','discrete barrier weekly','discrete barrier daily'])
+    df = pd.DataFrame([],index=['closed form BSM','sim vanilla','sim constant barrier','sim step-up barrier','sim linear barrier','sim discrete barrier monthly','sim discrete barrier weekly','sim discrete barrier daily'])
     for i in [0,4,8]:
         df['rebate=$'+str(i)]=main(i)
 
-display(df)
+
+# control variates
+
+beta = np.corrcoef(case1_call_payoffs,vanilla_call_payoffs)[0,1]*np.std(case1_call_payoffs)*\
+       np.std(vanilla_call_payoffs)/np.var(vanilla_call_payoffs)
+case1_control_payoff = case1_call_payoffs + beta * (bsm_call_payoff - vanilla_call_payoffs)
+print(f'variance for uncontrolled case 1 is {np.var(case1_call_payoffs)}')
+print(f'variance for controlled case 1 is {np.var(case1_control_payoff)}')
+
+
+# plots
+
+plt.figure(figsize=(16, 8))
+# for price_path in price_paths:
+#     plt.plot(price_path)
+plt.xlabel('option price')
+plt.ylabel('frequencies')
+# plt.xlabel('steps/days')
+# plt.ylabel('stock price')
+# plt.hist(vanilla_call_payoffs)
+plt.hist(case1_call_payoffs,bins=100)
+plt.hist(case1_control_payoff,bins=100)
+plt.legend(['uncontrolled case 1','controlled case 1'])
+plt.grid()
+#plt.show()
