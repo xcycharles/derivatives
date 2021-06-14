@@ -31,3 +31,14 @@ class OptionTrade:
             self.price = self.E * np.exp(-self.r * self.T) * stats.norm.cdf(-self.d2) - self.S * np.exp(-self.q * self.T) * stats.norm.cdf(-self.d1)
 
         return self.price
+
+class European_Call_Payoff:
+
+    def __init__(self, strike):
+        self.strike = strike
+
+    def get_payoff(self, stock_price):
+        if stock_price > self.strike:
+            return stock_price - self.strike
+        else:
+            return 0

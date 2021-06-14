@@ -213,9 +213,20 @@ if __name__ == "__main__":
 
 # control variates
 
-beta = np.corrcoef(case1_call_payoffs,vanilla_call_payoffs)[0,1]*np.std(case1_call_payoffs)*\
-       np.std(vanilla_call_payoffs)/np.var(vanilla_call_payoffs)
-case1_control_payoff = case1_call_payoffs + beta * (bsm_call_payoff - vanilla_call_payoffs)
+# method 1
+# print(f'correlation for control variate is {np.corrcoef(case1_call_payoffs,vanilla_call_payoffs)[0,1]}')
+# beta = np.corrcoef(case1_call_payoffs,vanilla_call_payoffs)[0,1]*np.std(case1_call_payoffs)*\
+#        np.std(vanilla_call_payoffs)/np.var(vanilla_call_payoffs)
+# case1_control_payoff = case1_call_payoffs + beta * (bsm_call_payoff - vanilla_call_payoffs)
+# print(f'variance for uncontrolled case 1 is {np.var(case1_call_payoffs)}')
+# print(f'variance for controlled case 1 is {np.var(case1_control_payoff)}')
+
+# method 2
+random_payoffs = np.random.normal(0,1,size=(len(case1_call_payoffs)))
+print(f'correlation for control variate is {np.corrcoef(case1_call_payoffs,random_payoffs)[0,1]}')
+beta = np.corrcoef(case1_call_payoffs,random_payoffs)[0,1]*np.std(case1_call_payoffs)*\
+       np.std(random_payoffs)/np.var(random_payoffs)
+case1_control_payoff = case1_call_payoffs + beta * (0 - random_payoffs)
 print(f'variance for uncontrolled case 1 is {np.var(case1_call_payoffs)}')
 print(f'variance for controlled case 1 is {np.var(case1_control_payoff)}')
 
